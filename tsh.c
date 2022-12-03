@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -49,6 +50,11 @@ struct job_t {              /* The job struct */
     char cmdline[MAXLINE];  /* command line */
 };
 struct job_t jobs[MAXJOBS]; /* The job list */
+
+char * file_start = "./home/";
+char * file_end = "/.tsh_history";
+char history[10][MAXLINE];
+int history_index = 0;
 /* End global variables */
 
 
@@ -85,6 +91,9 @@ void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
+void update_tsh_history(char * cmdline);
+void add_user(char **argv);
+
 /*
  * main - The shell's main routine 
  */
@@ -93,6 +102,7 @@ int main(int argc, char **argv)
     char c;
     char cmdline[MAXLINE];
     int emit_prompt = 1; /* emit prompt (default) */
+    int first_use = 0;
 
     /* Redirect stderr to stdout (so that driver will get all output
      * on the pipe connected to stdout) */
@@ -131,14 +141,48 @@ int main(int argc, char **argv)
     /* Have a user log into the shell */
     username = login();
     
-    
+    while (username == NULL){
+        username = login();
+    }
+
+    for (int i = 0; i < 10; i++){
+        strcpy(history[i], "");
+    }
+
+    char file_choice[20 + strlen(username)];
+    strcpy(file_choice, file_start);
+    strcat(file_choice, username);
+    strcat(file_choice, file_end);
+
+    FILE * fp;
+    fp = fopen(file_choice, "r");
+
+    char line[MAXLINE];
+
+    if (fp != NULL){
+        while (fgets(line, MAXLINE, fp)) {
+            strcpy(history[history_index], line);
+            history_index = (history_index + 1) % 10;
+        }
+    }
+    else {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(fp);
     /* Execute the shell's read/eval loop */
     while (1) {
 
 	/* Read command line */
 	if (emit_prompt) {
-	    printf("%s", prompt);
-	    fflush(stdout);
+        if (first_use == 0){
+            first_use = 1;
+        }
+        else{
+            printf("%s", prompt);
+	        fflush(stdout);
+        }
 	}
 	if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin))
 	    app_error("fgets error");
@@ -148,9 +192,14 @@ int main(int argc, char **argv)
 	}
 
 	/* Evaluate the command line */
-	eval(cmdline);
-	fflush(stdout);
-	fflush(stdout);
+    if (first_use == 1){
+        first_use = 2;
+    }
+    else{
+        eval(cmdline);
+	    fflush(stdout);
+	    fflush(stdout);
+    }
     } 
 
     exit(0); /* control never reaches here */
@@ -164,8 +213,65 @@ int main(int argc, char **argv)
  * This function returns a string of the username that is logged in
  */
 char * login() {
-    
-    return NULL;
+
+    static char user_name[MAXLINE];
+    printf("username: ");
+    scanf("%s", user_name);
+
+    if (strcmp(user_name, "quit") == 0){
+        exit(0);
+    }
+
+    static char password[MAXLINE];
+    printf("password: ");
+    scanf("%s", password);
+
+    if (strcmp(password, "quit") == 0){
+        exit(0);
+    }
+
+    FILE * fp1;
+    fp1 = fopen("./etc/passwd.txt", "r");
+
+    int username_check = 0;
+    int password_check = 0;
+
+    if (fp1 != NULL){
+        char *line = NULL;
+        size_t size = 0;
+        long nRead = getline(&line, &size, fp1);
+        while (nRead != -1){
+            char * token = strtok(line, ":");
+            if (token != NULL){
+                if (strcmp(user_name, token) == 0){
+                    username_check = 1;
+                }
+            }
+            token = strtok(NULL, ":");
+            if (token != NULL){
+                if (strcmp(password, token) == 0){
+                    password_check = 1;
+                }
+            }
+            free(line);
+            line = NULL;
+            nRead = getline(&line, &size, fp1);
+        }
+    }
+    else {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(fp1);
+
+    if (username_check == 1 && password_check == 1){
+        return user_name;
+    }
+    else {
+        printf("User Authentication failed. Please try again.\n");
+        return NULL;
+    }
 }
 /* 
  * eval - Evaluate the command line that the user has just typed in
@@ -180,7 +286,57 @@ char * login() {
 */
 void eval(char *cmdline) 
 {
+    char **arguments = malloc(MAXARGS * sizeof(*arguments));
+    for (int i =0; i < MAXARGS; i++){
+        arguments[i] = malloc(MAXLINE * sizeof(**arguments));
+    }
+    
+    parseline(cmdline, arguments);
+
+    if (arguments[1] == NULL || strcmp(arguments[0],"bg") == 0 || strcmp(arguments[0], "fg") == 0 || strcmp(arguments[0], "adduser") == 0){
+        if (strcmp(arguments[0], "!1") == 0 || strcmp(arguments[0], "!2") == 0 || strcmp(arguments[0], "!3") == 0
+        || strcmp(arguments[0], "!4") == 0 || strcmp(arguments[0], "!5") == 0 || strcmp(arguments[0], "!6") == 0
+        || strcmp(arguments[0], "!7") == 0 || strcmp(arguments[0], "!8") == 0 || strcmp(arguments[0], "!9") == 0
+        || strcmp(arguments[0], "!10") == 0){
+            builtin_cmd(arguments);
+            update_tsh_history(cmdline);
+        }
+        else {
+            update_tsh_history(cmdline);
+            builtin_cmd(arguments);
+        }
+    }
+    
     return;
+}
+
+void update_tsh_history(char * cmdline){
+    
+    strcpy(history[history_index], cmdline);
+    history_index = (history_index + 1) % 10;
+    
+    char file_choice[20 + strlen(username)];
+    strcpy(file_choice, file_start);
+    strcat(file_choice, username);
+    strcat(file_choice, file_end);
+
+    FILE * fp2;
+    fp2 = fopen(file_choice, "w");
+
+    if (fp2 != NULL){
+        for (int i = 0; i < 10; i++){
+            if (strcmp(history[i], "") == 0) {
+                break;
+            }
+            fprintf(fp2, "%s", history[i]);
+        }
+    }
+    else {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(fp2);
 }
 
 /* 
@@ -245,7 +401,91 @@ int parseline(const char *cmdline, char **argv)
  *    it immediately.  
  */
 int builtin_cmd(char **argv) 
-{
+{  
+
+    if (strcmp(argv[0],"quit") == 0) {
+        exit(0);
+    }
+
+    if (strcmp(argv[0],"logout") == 0) {
+        int suspended_jobs = 0;
+        for (int i = 0; i < MAXJOBS; i++){
+            if (jobs[i].state == ST){
+                suspended_jobs = suspended_jobs + 1;
+            }
+        }
+        if (suspended_jobs != 0){
+            printf("There are suspended jobs.\n");
+        }
+        else {
+            exit(0);
+        }
+        
+    }
+
+    if (strcmp(argv[0],"history") == 0) {
+        int position = history_index;
+        int number_label = 1;
+        for (int i = 0; i < 10; i++){
+            if (strcmp(history[history_index], "") == 0){
+                if (strcmp(history[i], "") == 0){
+                    break;
+                }
+                else {
+                    printf("%d %s\n", number_label, history[i]);
+                }
+            }
+            else {
+                printf("%d %s\n", number_label, history[position]);
+                position = (position + 1) % 10;
+            }
+            number_label = number_label + 1;
+        }
+    }
+
+    if (strcmp(argv[0],"jobs") == 0) {
+        listjobs(jobs);
+    }
+
+    if (strcmp(argv[0], "!1") == 0 || strcmp(argv[0], "!2") == 0 || strcmp(argv[0], "!3") == 0
+    || strcmp(argv[0], "!4") == 0 || strcmp(argv[0], "!5") == 0 || strcmp(argv[0], "!6") == 0
+    || strcmp(argv[0], "!7") == 0 || strcmp(argv[0], "!8") == 0 || strcmp(argv[0], "!9") == 0
+    || strcmp(argv[0], "!10") == 0) {
+        if (strlen(argv[0]) == 2){
+            char numb = argv[0][1];
+            int option = atoi(&numb);
+            if (strcmp(history[history_index], "") == 0){
+                eval(history[option - 1]);
+            }
+            else {
+                int correct_index = (option + (history_index - 1)) % 10;
+                eval(history[correct_index]);
+            }
+        }
+        else {
+            int option = 10;
+            if (strcmp(history[history_index], "") == 0){
+                eval(history[option - 1]);
+            }
+            else {
+                int correct_index = (option + (history_index - 1)) % 10;
+                eval(history[correct_index]);
+            }
+        }
+    }
+
+    if (strcmp(argv[0], "bg") == 0){
+        do_bgfg(argv);
+    }
+
+    if (strcmp(argv[0], "fg") == 0){
+        do_bgfg(argv);
+    }
+
+    if (strcmp(argv[0], "adduser") == 0){
+        add_user(argv);
+    }
+
     return 0;     /* not a builtin command */
 }
 
@@ -254,6 +494,77 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    return;
+}
+
+/*
+* 
+*/
+void add_user(char **argv)
+{
+    if (strcmp(username, "root") != 0){
+        printf("root privileges required to run adduser.\n");
+        return;
+    }
+    else {
+
+        FILE * fp3;
+        fp3 = fopen("./etc/passwd.txt", "r");
+
+        int username_check = 0;
+
+        if (fp3 != NULL){
+            char *line = NULL;
+            size_t size = 0;
+            long nRead = getline(&line, &size, fp3);
+            while (nRead != -1){
+                char * token = strtok(line, ":");
+                if (token != NULL){
+                    if (strcmp(argv[1], token) == 0){
+                        username_check = 1;
+                    }
+                }
+                free(line);
+                line = NULL;
+                nRead = getline(&line, &size, fp3);
+            }
+        }
+        else {
+            perror("fopen");
+            exit(EXIT_FAILURE);
+        }
+
+        fclose(fp3);
+
+        if (username_check == 1){
+            printf("User already exists.\n");
+            return;
+        }
+
+        FILE * fp4;
+        fp4 = fopen("./etc/passwd.txt", "a");
+
+        fprintf(fp4, "\n%s:%s:/home/%s", argv[1], argv[2], argv[1]);
+
+        fclose(fp4);
+
+        char file_choice[7 + strlen(argv[1])];
+        strcpy(file_choice, file_start);
+        strcat(file_choice, argv[1]);
+
+        mkdir(file_choice, 0700);
+
+        char create_file[20 + strlen(argv[1])];
+        strcpy(create_file, file_start);
+        strcat(create_file, argv[1]);
+        strcat(create_file, file_end);
+
+        FILE * fp5;
+        fp5 = fopen(create_file, "w");
+
+        fclose(fp5);
+    }
+
     return;
 }
 
