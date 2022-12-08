@@ -53,8 +53,12 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 
 char * file_start = "./home/";
 char * file_end = "/.tsh_history";
+char * proc_start = "./proc/";
+char * proc_end ="/status";
 char history[10][MAXLINE];
 int history_index = 0;
+pid_t fg_pid = 0;
+pid_t session_leader_pid = 0;
 /* End global variables */
 
 
@@ -93,6 +97,15 @@ handler_t *Signal(int signum, handler_t *handler);
 
 void update_tsh_history(char * cmdline);
 void add_user(char **argv);
+static void sio_reverse(char s[]);
+static void sio_ltoa(long v, char s[], int b);
+static size_t sio_strlen(char s[]);
+ssize_t sio_puts(char s[]);
+ssize_t sio_putl(long v);
+void sio_error(char s[]);
+ssize_t Sio_putl(long v);
+ssize_t Sio_puts(char s[]);
+void Sio_error(char s[]);
 
 /*
  * main - The shell's main routine 
@@ -145,6 +158,7 @@ int main(int argc, char **argv)
         username = login();
     }
 
+    /* Reload history is user logging in again */
     for (int i = 0; i < 10; i++){
         strcpy(history[i], "");
     }
@@ -171,6 +185,32 @@ int main(int argc, char **argv)
     }
 
     fclose(fp);
+
+    /* Create a proc entry for the shell */
+    pid_t pid = getpid();
+    session_leader_pid = getpid();
+    pid_t parent_pid = getppid();
+    pid_t process_group_id = getpgid(pid);
+
+    char pid_string[MAXLINE];
+    sprintf(pid_string, "%d", pid);
+    char proc_choice[7 + strlen(pid_string)];
+    strcpy(proc_choice, proc_start);
+    strcat(proc_choice, pid_string);
+    mkdir(proc_choice, 0700);
+
+    char status_file[14 + strlen(pid_string)];
+    strcpy(status_file, proc_start);
+    strcat(status_file, pid_string);
+    strcat(status_file, proc_end);
+
+    FILE * fp7;
+    fp7 = fopen(status_file, "w");
+
+    fprintf(fp7, "Name: %s\nPid: %d\nPPid: %d\nPGid: %d\nSid: %d\nSTAT: %s\nUsername: %s", "Shell", pid, parent_pid, process_group_id, session_leader_pid, "Ss", username);
+
+    fclose(fp7);
+
     /* Execute the shell's read/eval loop */
     while (1) {
 
@@ -286,27 +326,129 @@ char * login() {
 */
 void eval(char *cmdline) 
 {
+    int bg;
+    pid_t pid;
+    sigset_t mask_all, mask_one, prev_one;
+
+    sigfillset(&mask_all);
+    sigemptyset(&mask_one);
+    sigaddset(&mask_one, SIGCHLD);
+
     char **arguments = malloc(MAXARGS * sizeof(*arguments));
     for (int i =0; i < MAXARGS; i++){
         arguments[i] = malloc(MAXLINE * sizeof(**arguments));
     }
     
-    parseline(cmdline, arguments);
+    bg = parseline(cmdline, arguments);
 
-    if (arguments[1] == NULL || strcmp(arguments[0],"bg") == 0 || strcmp(arguments[0], "fg") == 0 || strcmp(arguments[0], "adduser") == 0){
+    // printf("%d\n", bg);
+
+    // for (int i = 0; i < MAXARGS; i++){
+    //     printf("%s\n", arguments[i]);
+    // }
+
+    if (arguments[0] == NULL){
+        return;
+    }
+
+    if (strcmp(arguments[0], "!1") == 0 || strcmp(arguments[0], "!2") == 0 || strcmp(arguments[0], "!3") == 0
+        || strcmp(arguments[0], "!4") == 0 || strcmp(arguments[0], "!5") == 0 || strcmp(arguments[0], "!6") == 0
+        || strcmp(arguments[0], "!7") == 0 || strcmp(arguments[0], "!8") == 0 || strcmp(arguments[0], "!9") == 0
+        || strcmp(arguments[0], "!10") == 0 || strcmp(arguments[0],"bg") == 0 || strcmp(arguments[0], "fg") == 0 || strcmp(arguments[0], "adduser") == 0
+        || strcmp(arguments[0],"quit") == 0 || strcmp(arguments[0],"logout") == 0 || strcmp(arguments[0],"history") == 0 || strcmp(arguments[0],"jobs") == 0){
+        
         if (strcmp(arguments[0], "!1") == 0 || strcmp(arguments[0], "!2") == 0 || strcmp(arguments[0], "!3") == 0
         || strcmp(arguments[0], "!4") == 0 || strcmp(arguments[0], "!5") == 0 || strcmp(arguments[0], "!6") == 0
         || strcmp(arguments[0], "!7") == 0 || strcmp(arguments[0], "!8") == 0 || strcmp(arguments[0], "!9") == 0
         || strcmp(arguments[0], "!10") == 0){
             builtin_cmd(arguments);
             update_tsh_history(cmdline);
+            return;
         }
         else {
             update_tsh_history(cmdline);
             builtin_cmd(arguments);
+            return;
         }
     }
+
+    update_tsh_history(cmdline);
+
+    sigprocmask(SIG_BLOCK, &mask_one, &prev_one);
+    if ((pid = fork()) == 0) {   /* Child runs user job */
+        setpgid(0, 0);
+        pid = getpid();
+        pid_t parent_pid = getppid();
+        pid_t process_group_id = getpgid(pid);
+
+        if (bg ==0){
+            fg_pid = 0;
+
+            char pid_string[MAXLINE];
+            sprintf(pid_string, "%d", pid);
+            char proc_choice[7 + strlen(pid_string)];
+            strcpy(proc_choice, proc_start);
+            strcat(proc_choice, pid_string);
+            mkdir(proc_choice, 0700);
+
+            char status_file[14 + strlen(pid_string)];
+            strcpy(status_file, proc_start);
+            strcat(status_file, pid_string);
+            strcat(status_file, proc_end);
+
+            FILE * fp6;
+            fp6 = fopen(status_file, "w");
+
+            fprintf(fp6, "Name: %s\nPid: %d\nPPid: %d\nPGid: %d\nSid: %d\nSTAT: %s\nUsername: %s", arguments[0], pid, parent_pid, process_group_id, session_leader_pid, "R+", username);
+
+            fclose(fp6);
+        }
+        else {
+            char pid_string[MAXLINE];
+            sprintf(pid_string, "%d", pid);
+            char proc_choice[7 + strlen(pid_string)];
+            strcpy(proc_choice, proc_start);
+            strcat(proc_choice, pid_string);
+            mkdir(proc_choice, 0700);
+
+            char status_file[14 + strlen(pid_string)];
+            strcpy(status_file, proc_start);
+            strcat(status_file, pid_string);
+            strcat(status_file, proc_end);
+
+            FILE * fp6;
+            fp6 = fopen(status_file, "w");
+
+            fprintf(fp6, "Name: %s\nPid: %d\nPPid: %d\nPGid: %d\nSid: %d\nSTAT: %s\nUsername: %s", arguments[0], pid, parent_pid, process_group_id, session_leader_pid, "R", username);
+
+            fclose(fp6);
+        }
+        sigprocmask(SIG_SETMASK, &prev_one, NULL);
+
+        if (execve(arguments[0], arguments, environ) < 0) {
+            printf("%s: Command not found.\n", arguments[0]);
+            exit(0);
+        }
+    }
+
+    sigprocmask(SIG_BLOCK, &mask_all, NULL);
+    if (bg == 0){
+        addjob(jobs, pid, FG, cmdline);
+    }
+    else {
+        addjob(jobs, pid, BG, cmdline);   
+     }
+    sigprocmask(SIG_SETMASK, &prev_one, NULL);
+
+    if (bg == 0) { // Foreground Job
+        int status;
+        waitfg(pid);
+    }
+    else {
+        printf("%d %s", pid, cmdline);
+    }
     
+
     return;
 }
 
@@ -404,6 +546,23 @@ int builtin_cmd(char **argv)
 {  
 
     if (strcmp(argv[0],"quit") == 0) {
+        
+        char pid_string[MAXLINE];
+        sprintf(pid_string, "%d", session_leader_pid);
+
+        char status_file[14 + strlen(pid_string)];
+        strcpy(status_file, proc_start);
+        strcat(status_file, pid_string);
+        strcat(status_file, proc_end);
+
+        remove(status_file);
+
+        char proc_choice[7 + strlen(pid_string)];
+        strcpy(proc_choice, proc_start);
+        strcat(proc_choice, pid_string);
+        
+        rmdir(proc_choice);
+
         exit(0);
     }
 
@@ -418,6 +577,22 @@ int builtin_cmd(char **argv)
             printf("There are suspended jobs.\n");
         }
         else {
+            char pid_string[MAXLINE];
+            sprintf(pid_string, "%d", session_leader_pid);
+
+            char status_file[14 + strlen(pid_string)];
+            strcpy(status_file, proc_start);
+            strcat(status_file, pid_string);
+            strcat(status_file, proc_end);
+
+            remove(status_file);
+
+            char proc_choice[7 + strlen(pid_string)];
+            strcpy(proc_choice, proc_start);
+            strcat(proc_choice, pid_string);
+            
+            rmdir(proc_choice);
+
             exit(0);
         }
         
@@ -494,6 +669,42 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    if (strcmp(argv[0], "bg") == 0){
+        int value = atoi(argv[1]);
+        struct job_t * job1 = getjobjid(jobs, value);
+        struct job_t * job2 = getjobpid(jobs, value);
+
+        if (job1 != NULL){
+            job1->state = BG;
+            kill(job1->pid, SIGCONT);
+            // update proc status file to running 
+        }
+        else if (job2 != NULL){
+            job2->state = BG;
+            kill(job2->pid, SIGCONT);
+        }
+        else {
+            printf("Invalid JID/PID Entered.\n");
+        }
+    }
+    else {
+        int value = atoi(argv[1]);
+        struct job_t * job1 = getjobjid(jobs, value);
+        struct job_t * job2 = getjobpid(jobs, value);
+
+        if (job1 != NULL){
+            job1->state = FG;
+            kill(job1->pid, SIGCONT);
+            //update proc status file to running 
+        }
+        else if (job2 != NULL){
+            job2->state = FG;
+            kill(job2->pid, SIGCONT);
+        }
+        else {
+            printf("Invalid JID/PID Entered.\n");
+        }
+    }
     return;
 }
 
@@ -573,6 +784,12 @@ void add_user(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    while (1) {
+        if (pid == fg_pid) {
+            break;
+        }
+        sleep(1);
+    }
     return;
 }
 
@@ -589,6 +806,43 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+    int olderrno = errno;
+    pid_t pid;
+    
+    while((pid = wait(NULL)) > 0){ 
+        fg_pid = pid;
+
+        if(verbose){
+            Sio_puts("Handler reaped child ");
+            Sio_putl((long)pid);
+            Sio_puts(" \n");
+        }
+
+        char pid_string[MAXLINE];
+        sprintf(pid_string, "%d", pid);
+
+        char status_file[14 + strlen(pid_string)];
+        strcpy(status_file, proc_start);
+        strcat(status_file, pid_string);
+        strcat(status_file, proc_end);
+
+        remove(status_file);
+
+        char proc_choice[7 + strlen(pid_string)];
+        strcpy(proc_choice, proc_start);
+        strcat(proc_choice, pid_string);
+        
+    
+        rmdir(proc_choice);
+
+        deletejob(jobs, pid);
+
+    }
+    if (errno != ECHILD){
+        Sio_error("wait error");
+    }
+    errno = olderrno;
+
     return;
 }
 
@@ -599,6 +853,31 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    pid_t foreground_pid = fgpid(jobs);
+    
+    if (foreground_pid == 0){
+        return;
+    }
+    else {
+        killpg(foreground_pid, SIGINT);
+        deletejob(jobs, foreground_pid);
+
+        char pid_string[MAXLINE];
+        sprintf(pid_string, "%d", foreground_pid);
+
+        char status_file[14 + strlen(pid_string)];
+        strcpy(status_file, proc_start);
+        strcat(status_file, pid_string);
+        strcat(status_file, proc_end);
+
+        remove(status_file);
+
+        char proc_choice[7 + strlen(pid_string)];
+        strcpy(proc_choice, proc_start);
+        strcat(proc_choice, pid_string);
+
+        rmdir(proc_choice);
+    }
     return;
 }
 
@@ -609,6 +888,18 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    pid_t foreground_pid = fgpid(jobs);
+    
+    if (foreground_pid == 0){
+        return;
+    }
+    else {
+        killpg(foreground_pid, SIGTSTP);
+        // change job state to stopped in job list 
+        // struct job_t * job1 = getjobpid(jobs, foreground_pid);
+        // job1->state = ST;
+        // Now edit the proc status file to indicate the process has stopped 
+    }
     return;
 }
 
@@ -656,18 +947,18 @@ int addjob(struct job_t *jobs, pid_t pid, int state, char *cmdline)
 	return 0;
 
     for (i = 0; i < MAXJOBS; i++) {
-	if (jobs[i].pid == 0) {
-	    jobs[i].pid = pid;
-	    jobs[i].state = state;
-	    jobs[i].jid = nextjid++;
-	    if (nextjid > MAXJOBS)
-		nextjid = 1;
-	    strcpy(jobs[i].cmdline, cmdline);
-  	    if(verbose){
-	        printf("Added job [%d] %d %s\n", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
+        if (jobs[i].pid == 0) {
+            jobs[i].pid = pid;
+            jobs[i].state = state;
+            jobs[i].jid = nextjid++;
+            if (nextjid > MAXJOBS)
+            nextjid = 1;
+            strcpy(jobs[i].cmdline, cmdline);
+            if(verbose){
+                printf("Added job [%d] %d %s\n", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
             }
-            return 1;
-	}
+                return 1;
+        }
     }
     printf("Tried to create too many jobs\n");
     return 0;
@@ -743,27 +1034,30 @@ int pid2jid(pid_t pid)
 /* listjobs - Print the job list */
 void listjobs(struct job_t *jobs) 
 {
+    // for (int i =0; i < MAXJOBS; i++) {
+    //     printf("%d\n", jobs[i].pid);
+    // }
     int i;
     
     for (i = 0; i < MAXJOBS; i++) {
-	if (jobs[i].pid != 0) {
-	    printf("[%d] (%d) ", jobs[i].jid, jobs[i].pid);
-	    switch (jobs[i].state) {
-		case BG: 
-		    printf("Running ");
-		    break;
-		case FG: 
-		    printf("Foreground ");
-		    break;
-		case ST: 
-		    printf("Stopped ");
-		    break;
-	    default:
-		    printf("listjobs: Internal error: job[%d].state=%d ", 
-			   i, jobs[i].state);
+        if (jobs[i].pid != 0) {
+            printf("[%d] (%d) ", jobs[i].jid, jobs[i].pid);
+            switch (jobs[i].state) {
+            case BG: 
+                printf("Running ");
+                break;
+            case FG: 
+                printf("Foreground ");
+                break;
+            case ST: 
+                printf("Stopped ");
+                break;
+            default:
+                printf("listjobs: Internal error: job[%d].state=%d ", 
+                i, jobs[i].state);
+            }
+            printf("%s", jobs[i].cmdline);
 	    }
-	    printf("%s", jobs[i].cmdline);
-	}
     }
 }
 /******************************
@@ -832,4 +1126,103 @@ void sigquit_handler(int sig)
 }
 
 
+/*************************************************************
+ * The Sio (Signal-safe I/O) package - simple reentrant output
+ * functions that are safe for signal handlers.
+ * Citation: csapp.c - Functions for the CS:APP3e book
+ *************************************************************/
+
+/* Private sio functions */
+
+/* $begin sioprivate */
+/* sio_reverse - Reverse a string (from K&R) */
+static void sio_reverse(char s[])
+{
+    int c, i, j;
+
+    for (i = 0, j = strlen(s)-1; i < j; i++, j--) {
+        c = s[i];
+        s[i] = s[j];
+        s[j] = c;
+    }
+}
+
+/* sio_ltoa - Convert long to base b string (from K&R) */
+static void sio_ltoa(long v, char s[], int b) 
+{
+    int c, i = 0;
+    int neg = (v < 0);
+
+    if (neg) {
+    v = -v;
+    }
+    
+    do {  
+        s[i++] = ((c = (v % b)) < 10)  ?  c + '0' : c - 10 + 'a';
+    } while ((v /= b) > 0);
+    if (neg)
+    s[i++] = '-';
+    s[i] = '\0';
+    sio_reverse(s);
+}
+
+/* sio_strlen - Return length of string (from K&R) */
+static size_t sio_strlen(char s[])
+{
+    int i = 0;
+
+    while (s[i] != '\0')
+        ++i;
+    return i;
+}
+/* $end sioprivate */
+
+/* Public Sio functions */
+/* $begin siopublic */
+
+ssize_t sio_puts(char s[]) /* Put string */
+{
+    return write(STDOUT_FILENO, s, sio_strlen(s)); //line:csapp:siostrlen
+}
+
+ssize_t sio_putl(long v) /* Put long */
+{
+    char s[128];
+    
+    sio_ltoa(v, s, 10); /* Based on K&R itoa() */  //line:csapp:sioltoa
+    return sio_puts(s);
+}
+
+void sio_error(char s[]) /* Put error message and exit */
+{
+    sio_puts(s);
+    _exit(1);                                      //line:csapp:sioexit
+}
+/* $end siopublic */
+
+/*******************************
+ * Wrappers for the SIO routines
+ ******************************/
+ssize_t Sio_putl(long v)
+{
+    ssize_t n;
+  
+    if ((n = sio_putl(v)) < 0)
+    sio_error("Sio_putl error");
+    return n;
+}
+
+ssize_t Sio_puts(char s[])
+{
+    ssize_t n;
+  
+    if ((n = sio_puts(s)) < 0)
+    sio_error("Sio_puts error");
+    return n;
+}
+void Sio_error(char s[])
+{
+    sio_error(s);
+}
+/*************************************************************/
 
