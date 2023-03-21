@@ -116,7 +116,6 @@ In this section, we will discuss the implementation of the various features of t
         ST -> FG  : fg command
         ST -> BG  : bg command
         BG -> FG  : fg command
-
 4. PROC
 
     As mentioned above, the shell can run any command that is available on the system as a runnable script. In running such commands that are not built-in, the shell creates a folder in the proc directory for each process that is spawned, where the folder name is the process pid and contains a status file containing the following fields that are changed as the state of the process changes: 1. Name - the command associated with the process 2. Pid - the process id 3. PPid - the parent process id 4. PGid - the process group id 5. Sid - the session id 6. STAT - the process state 7. Username - the username of the user that spawned the process
