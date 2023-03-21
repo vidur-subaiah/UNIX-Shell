@@ -122,7 +122,7 @@ In this section, we will discuss the implementation of the various features of t
 
     A struct stat is used to store this information when it is to be written to the status file. The struct is shown below -
 
-    struct stat_t {
+  struct stat_t {
         char name[MAXLINE];     /* name of the command */
         pid_t pid;              /* process id */
         pid_t ppid;             /* parent process id */
