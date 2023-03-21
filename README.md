@@ -118,26 +118,26 @@ The shell starts by prompting the user for a username and password. The shell th
 
 4. PROC
 
-As mentioned above, the shell can run any command that is available on the system as a runnable script. In running such commands that are not built-in, the shell creates a folder in the proc directory for each process that is spawned, where the folder name is the process pid and contains a status file containing the following fields that are changed as the state of the process changes: 1. Name - the command associated with the process 2. Pid - the process id 3. PPid - the parent process id 4. PGid - the process group id 5. Sid - the session id 6. STAT - the process state 7. Username - the username of the user that spawned the process
+    As mentioned above, the shell can run any command that is available on the system as a runnable script. In running such commands that are not built-in, the shell creates a folder in the proc directory for each process that is spawned, where the folder name is the process pid and contains a status file containing the following fields that are changed as the state of the process changes: 1. Name - the command associated with the process 2. Pid - the process id 3. PPid - the parent process id 4. PGid - the process group id 5. Sid - the session id 6. STAT - the process state 7. Username - the username of the user that spawned the process
 
-A struct stat is used to store this information when it is to be written to the status file. The struct is shown below -
+    A struct stat is used to store this information when it is to be written to the status file. The struct is shown below -
 
-struct stat_t {
-    char name[MAXLINE];     /* name of the command */
-    pid_t pid;              /* process id */
-    pid_t ppid;             /* parent process id */
-    pid_t pgid;             /* process group id */
-    pid_t sid;              /* session id */
-    char state[MAXLINE];    /* state of the process */
-    char uname[MAXLINE];    /* user name */
-};
+    struct stat_t {
+        char name[MAXLINE];     /* name of the command */
+        pid_t pid;              /* process id */
+        pid_t ppid;             /* parent process id */
+        pid_t pgid;             /* process group id */
+        pid_t sid;              /* session id */
+        char state[MAXLINE];    /* state of the process */
+        char uname[MAXLINE];    /* user name */
+    };
 
 5. Job Control
 
-The signals handlers that the shell implements are the following:
+    The signals handlers that the shell implements are the following:
 
-SIGCHLD - When a SIGCHLD signal is received, the function checks if the signal received is the correct signal. If so, it blocks all signals to allow for this signal to be processed before handling any other signals that could be received. This is because only one signal of that type can be handled at a time and any signals of the same type are ignored if received when processing the current signal of that type. In the handler, we wait for the child process to complete and then check if the process terminated or was stopped.
+    SIGCHLD - When a SIGCHLD signal is received, the function checks if the signal received is the correct signal. If so, it blocks all signals to allow for this signal to be processed before handling any other signals that could be received. This is because only one signal of that type can be handled at a time and any signals of the same type are ignored if received when processing the current signal of that type. In the handler, we wait for the child process to complete and then check if the process terminated or was stopped.
 
-SIGTSTP - When a SIGSTP signal is received, the function checks if the signal received is the correct signal. If so, it blocks all signals to allow for this signal to be processed before handling any other signals that could be received. This is because only one signal of that type can be handled at a time and any signals of the same type are ignored if received when processing the current signal of that type.
+    SIGTSTP - When a SIGSTP signal is received, the function checks if the signal received is the correct signal. If so, it blocks all signals to allow for this signal to be processed before handling any other signals that could be received. This is because only one signal of that type can be handled at a time and any signals of the same type are ignored if received when processing the current signal of that type.
 
-SIGINT - When a SIGINT signal is received, the function checks if the signal received is the correct signal. If so, it blocks all signals to allow for this signal to be processed before handling any other signals that could be received. This is because only one signal of that type can be handled at a time and any signals of the same type are ignored if received when processing the current signal of that type.
+    SIGINT - When a SIGINT signal is received, the function checks if the signal received is the correct signal. If so, it blocks all signals to allow for this signal to be processed before handling any other signals that could be received. This is because only one signal of that type can be handled at a time and any signals of the same type are ignored if received when processing the current signal of that type.
