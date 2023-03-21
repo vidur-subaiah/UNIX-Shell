@@ -121,16 +121,17 @@ In this section, we will discuss the implementation of the various features of t
     As mentioned above, the shell can run any command that is available on the system as a runnable script. In running such commands that are not built-in, the shell creates a folder in the proc directory for each process that is spawned, where the folder name is the process pid and contains a status file containing the following fields that are changed as the state of the process changes: 1. Name - the command associated with the process 2. Pid - the process id 3. PPid - the parent process id 4. PGid - the process group id 5. Sid - the session id 6. STAT - the process state 7. Username - the username of the user that spawned the process
 
     A struct stat is used to store this information when it is to be written to the status file. The struct is shown below -
-
-  struct stat_t {
-        char name[MAXLINE];     /* name of the command */
-        pid_t pid;              /* process id */
-        pid_t ppid;             /* parent process id */
-        pid_t pgid;             /* process group id */
-        pid_t sid;              /* session id */
-        char state[MAXLINE];    /* state of the process */
-        char uname[MAXLINE];    /* user name */
-    };
+```
+      struct stat_t {
+            char name[MAXLINE];     /* name of the command */
+            pid_t pid;              /* process id */
+            pid_t ppid;             /* parent process id */
+            pid_t pgid;             /* process group id */
+            pid_t sid;              /* session id */
+            char state[MAXLINE];    /* state of the process */
+            char uname[MAXLINE];    /* user name */
+        };
+```
 
 5. Job Control
 
