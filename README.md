@@ -51,7 +51,8 @@ User Management - The shell supports multiple users along with the root user. Th
 In this section, we will discuss the implementation of the various features of the shell. All code referenced can be found within tsh.c.
 
 1. Login
-The shell starts by prompting the user for a username and password. The shell then checks if the user exists in the system and if the password entered is matches the password stored in the system for that particular user. If the user does not exist or the password does not match, the shell returns an error message stating that the user authentication has failed and the user must try again as shown below -
+
+    The shell starts by prompting the user for a username and password. The shell then checks if the user exists in the system and if the password entered is matches the password stored in the system for that particular user. If the user does not exist or the password does not match, the shell returns an error message stating that the user authentication has failed and the user must try again as shown below -
 
     User Authentication failed. Please try again.
 
