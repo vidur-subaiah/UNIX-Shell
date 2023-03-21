@@ -4,7 +4,7 @@ The Tiny Shell (tsh) is a simple shell program.
 
 tsh supports the following features:
 
-1. Command Evaluation - A command line interface that accepts user input and executes commands. Built-in commands include:
+* Command Evaluation - A command line interface that accepts user input and executes commands. Built-in commands include:
 
 quit - exits the shell
 logout - logs the user out of the shell
@@ -17,15 +17,15 @@ fg - resumes a background job in the foreground
 
 The user may also execute any other command that is available on the system as a runnable script by spawning a child process.
 
-2. Job Control - The shell supports running jobs in the background and foreground. The shell also supports suspending (ctrl-z), terminating (ctrl-c) and resuming jobs. The shell also supports the jobs command to list all background jobs and the bg and fg commands to resume a background job in the background or foreground respectively.
+* Job Control - The shell supports running jobs in the background and foreground. The shell also supports suspending (ctrl-z), terminating (ctrl-c) and resuming jobs. The shell also supports the jobs command to list all background jobs and the bg and fg commands to resume a background job in the background or foreground respectively.
 
-3. Signal Handling - The shell supports the following signals:
+* Signal Handling - The shell supports the following signals:
 
 SIGINT - terminates the foreground process
 SIGTSTP - suspends the foreground process
 SIGCHLD - handles the termination of a child process
 
-4. Process File Management - The shell can run any command that is available on the system as a runnable script. In running such commands that are not built-in, the shell creates a folder in the proc directory for each process that is spawned, where the folder name is the process pid and contains a status file containing the following fields that are changed as the state of the process changes:
+* Process File Management - The shell can run any command that is available on the system as a runnable script. In running such commands that are not built-in, the shell creates a folder in the proc directory for each process that is spawned, where the folder name is the process pid and contains a status file containing the following fields that are changed as the state of the process changes:
 
 Name - the command associated with the process
 Pid - the process id
@@ -36,7 +36,7 @@ STAT - the process state
 Username - the username of the user that spawned the process
 A struct stat is used to store this information when it is to be written to the status file.
 
-5. User Management - The shell supports multiple users along with the root user. The root user has the ability to add new users to the system. All built-in commands are restricted to a particular user. The adduser command can only be executed successfully by the root user.
+* User Management - The shell supports multiple users along with the root user. The root user has the ability to add new users to the system. All built-in commands are restricted to a particular user. The adduser command can only be executed successfully by the root user.
 
 ## Implementation
 
